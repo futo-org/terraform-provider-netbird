@@ -35,12 +35,20 @@ resource "netbird_group" "example" {
 ### Optional
 
 - `peers` (List of String) List of peers ids
-- `resources` (List of String) List of network resource ids
+- `resources` (List of Object) List of network resources associated with the group, each as an object with `id` and `type`. Typically populated by the API and managed from the netbird_network_resource side. (see [below for nested schema](#nestedatt--resources))
 
 ### Read-Only
 
 - `id` (String) Group ID
 - `issued` (String) Group issued by
+
+<a id="nestedatt--resources"></a>
+### Nested Schema for `resources`
+
+Optional:
+
+- `id` (String)
+- `type` (String)
 
 ## Import
 

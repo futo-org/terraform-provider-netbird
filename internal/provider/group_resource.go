@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -35,6 +36,22 @@ func NewGroup() resource.Resource {
 // Group defines the resource implementation.
 type Group struct {
 	client *netbird.Client
+}
+
+// groupResourceObjectType is the element type for the group `resources`
+// attribute. The NetBird API models each associated network resource as an
+// object with an id and a type, so the Terraform attribute must mirror that
+// (a list of {id, type} objects) for the value to round-trip. Declaring it as
+// a list of plain strings — as the original provider did — made
+// groupAPIToTerraform write string IDs while Create/Update read each element
+// back as a map[string]string, producing the runtime error:
+//
+//	cannot reflect tftypes.String into a map, must be a map
+var groupResourceObjectType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"id":   types.StringType,
+		"type": types.StringType,
+	},
 }
 
 // GroupModel describes the resource data model.
@@ -80,12 +97,11 @@ func (r *Group) Schema(ctx context.Context, req resource.SchemaRequest, resp *re
 				Validators:          []validator.List{listvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1))},
 			},
 			"resources": schema.ListAttribute{
-				MarkdownDescription: "List of network resource ids",
-				ElementType:         types.StringType,
+				MarkdownDescription: "List of network resources associated with the group, each as an object with `id` and `type`. Typically populated by the API and managed from the netbird_network_resource side.",
+				ElementType:         groupResourceObjectType,
 				Computed:            true,
 				Optional:            true,
 				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
-				Validators:          []validator.List{listvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1))},
 			},
 		},
 	}
@@ -123,13 +139,18 @@ func groupAPIToTerraform(ctx context.Context, group *api.Group, data *GroupModel
 	l, diag := types.ListValueFrom(ctx, types.StringType, peers)
 	ret.Append(diag...)
 	data.Peers = l
-	resources := make([]string, len(group.Resources))
+	resources := make([]attr.Value, len(group.Resources))
 	for i, j := range group.Resources {
-		resources[i] = j.Id
+		o, d := types.ObjectValue(groupResourceObjectType.AttrTypes, map[string]attr.Value{
+			"id":   types.StringValue(j.Id),
+			"type": types.StringValue(string(j.Type)),
+		})
+		ret.Append(d...)
+		resources[i] = o
 	}
-	l, diag = types.ListValueFrom(ctx, types.StringType, resources)
+	rl, diag := types.ListValue(groupResourceObjectType, resources)
 	ret.Append(diag...)
-	data.Resources = l
+	data.Resources = rl
 	return ret
 }
 

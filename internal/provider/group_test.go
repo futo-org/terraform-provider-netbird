@@ -34,7 +34,7 @@ func Test_groupAPIToTerraform(t *testing.T) {
 				Issued:    types.StringValue("api"),
 				Name:      types.StringValue("Test"),
 				Peers:     types.ListValueMust(types.StringType, []attr.Value{}),
-				Resources: types.ListValueMust(types.StringType, []attr.Value{}),
+				Resources: types.ListValueMust(groupResourceObjectType, []attr.Value{}),
 			},
 		},
 		{
@@ -69,7 +69,16 @@ func Test_groupAPIToTerraform(t *testing.T) {
 				Issued:    types.StringNull(),
 				Name:      types.StringValue("Meow"),
 				Peers:     types.ListValueMust(types.StringType, []attr.Value{types.StringValue("c1"), types.StringValue("c2")}),
-				Resources: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("r1"), types.StringValue("r2")}),
+				Resources: types.ListValueMust(groupResourceObjectType, []attr.Value{
+					types.ObjectValueMust(groupResourceObjectType.AttrTypes, map[string]attr.Value{
+						"id":   types.StringValue("r1"),
+						"type": types.StringValue(string(api.ResourceTypeDomain)),
+					}),
+					types.ObjectValueMust(groupResourceObjectType.AttrTypes, map[string]attr.Value{
+						"id":   types.StringValue("r2"),
+						"type": types.StringValue(string(api.ResourceTypeSubnet)),
+					}),
+				}),
 			},
 		},
 	}
