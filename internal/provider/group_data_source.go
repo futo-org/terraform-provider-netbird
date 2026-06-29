@@ -55,8 +55,8 @@ func (d *GroupDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 				Computed:            true,
 			},
 			"resources": schema.ListAttribute{
-				MarkdownDescription: "List of network resource ids",
-				ElementType:         types.StringType,
+				MarkdownDescription: "List of network resources associated with the group, each as an object with `id` and `type`.",
+				ElementType:         groupResourceObjectType,
 				Computed:            true,
 			}},
 	}
