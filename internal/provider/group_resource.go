@@ -54,6 +54,17 @@ var groupResourceObjectType = types.ObjectType{
 	},
 }
 
+// groupResourceModel mirrors groupResourceObjectType for decoding the `resources`
+// list elements back out of plan/state in Create/Update. Object elements must
+// reflect into a Go struct (with tfsdk tags), NOT a map[string]string — a map
+// target is only valid for a tftypes.Map, so reflecting an Object into one fails
+// with "cannot reflect tftypes.Object[...] into a map, must be a map". This is the
+// TF→API direction that the group-resources-roundtrip fix missed.
+type groupResourceModel struct {
+	Id   types.String `tfsdk:"id"`
+	Type types.String `tfsdk:"type"`
+}
+
 // GroupModel describes the resource data model.
 type GroupModel struct {
 	Id        types.String `tfsdk:"id"`
@@ -154,6 +165,31 @@ func groupAPIToTerraform(ctx context.Context, group *api.Group, data *GroupModel
 	return ret
 }
 
+// groupResourcesToAPI decodes the `resources` attribute (a list of {id, type}
+// objects) into the API request shape, returning nil when empty so the group
+// request omits the field. Object elements decode into groupResourceModel
+// structs — decoding into []map[string]string (as Create/Update did before)
+// fails reflection with "cannot reflect tftypes.Object[...] into a map".
+func groupResourcesToAPI(ctx context.Context, list types.List) (*[]api.Resource, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if len(list.Elements()) == 0 {
+		return nil, diags
+	}
+	var tfVal []groupResourceModel
+	diags.Append(list.ElementsAs(ctx, &tfVal, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	resourcesVal := make([]api.Resource, 0, len(tfVal))
+	for _, v := range tfVal {
+		resourcesVal = append(resourcesVal, api.Resource{
+			Id:   v.Id.ValueString(),
+			Type: api.ResourceType(v.Type.ValueString()),
+		})
+	}
+	return &resourcesVal, diags
+}
+
 func (r *Group) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data GroupModel
 
@@ -164,21 +200,10 @@ func (r *Group) Create(ctx context.Context, req resource.CreateRequest, resp *re
 		return
 	}
 
-	var resources *[]api.Resource
-	if len(data.Resources.Elements()) > 0 {
-		var tfVal []map[string]string
-		var resourcesVal []api.Resource
-		resp.Diagnostics.Append(data.Resources.ElementsAs(ctx, &tfVal, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		for _, v := range tfVal {
-			resourcesVal = append(resourcesVal, api.Resource{
-				Id:   v["id"],
-				Type: api.ResourceType(v["type"]),
-			})
-		}
-		resources = &resourcesVal
+	resources, resourcesDiags := groupResourcesToAPI(ctx, data.Resources)
+	resp.Diagnostics.Append(resourcesDiags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	groupReq := api.GroupRequest{
@@ -249,21 +274,10 @@ func (r *Group) Update(ctx context.Context, req resource.UpdateRequest, resp *re
 		return
 	}
 
-	var resources *[]api.Resource
-	if len(data.Resources.Elements()) > 0 {
-		var tfVal []map[string]string
-		var resourcesVal []api.Resource
-		resp.Diagnostics.Append(data.Resources.ElementsAs(ctx, &tfVal, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		for _, v := range tfVal {
-			resourcesVal = append(resourcesVal, api.Resource{
-				Id:   v["id"],
-				Type: api.ResourceType(v["type"]),
-			})
-		}
-		resources = &resourcesVal
+	resources, resourcesDiags := groupResourcesToAPI(ctx, data.Resources)
+	resp.Diagnostics.Append(resourcesDiags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	groupReq := api.GroupRequest{
