@@ -124,6 +124,10 @@ func (p *NetBirdProvider) Resources(ctx context.Context) []func() resource.Resou
 		NewReverseProxyService,
 		NewToken,
 		NewUser,
+		NewAgentNetworkProvider,
+		NewAgentNetworkPolicy,
+		NewAgentNetworkGuardrail,
+		NewAgentNetworkSettings,
 	}
 }
 
@@ -138,6 +142,7 @@ func (p *NetBirdProvider) DataSources(ctx context.Context) []func() datasource.D
 		NewDNSZoneDataSource,
 		NewDNSRecordDataSource,
 		NewGroupDataSource,
+		NewGroupsDataSource,
 		NewIdentityProviderDataSource,
 		NewNameserverGroupDataSource,
 		NewNetworkDataSource,
@@ -155,6 +160,10 @@ func (p *NetBirdProvider) DataSources(ctx context.Context) []func() datasource.D
 		NewReverseProxyServiceDataSource,
 		NewTokenDataSource,
 		NewUserDataSource,
+		NewUsersDataSource,
+		NewAgentNetworkProviderDataSource,
+		NewAgentNetworkPolicyDataSource,
+		NewAgentNetworkGuardrailDataSource,
 	}
 }
 

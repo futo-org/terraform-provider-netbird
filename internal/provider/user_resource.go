@@ -96,9 +96,13 @@ func (r *User) Schema(ctx context.Context, req resource.SchemaRequest, resp *res
 				Validators:          []validator.String{stringvalidator.OneOf("owner", "admin", "user", "billing_admin", "auditor", "network_admin")},
 			},
 			"status": schema.StringAttribute{
-				MarkdownDescription: "User status (active or invited)",
+				// No UseStateForUnknown: status tracks is_blocked, so keeping the
+				// prior value through the plan made Terraform expect "active" while
+				// the apply returned "blocked", which it reports as the provider
+				// producing an inconsistent result. It has to be planned as unknown
+				// because it is a value only the server can supply.
+				MarkdownDescription: "User status (active, invited or blocked)",
 				Computed:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"issued": schema.StringAttribute{
 				MarkdownDescription: "User issue method",
@@ -153,19 +157,27 @@ func (r *User) Configure(ctx context.Context, req resource.ConfigureRequest, res
 	r.client = client
 }
 
+// userAPIToTerraform copies an API user into the Terraform model, mapping absent optional fields to null.
 func userAPIToTerraform(ctx context.Context, user *api.User, data *UserModel) diag.Diagnostics {
 	var ret diag.Diagnostics
 	data.Id = types.StringValue(user.Id)
 	data.Name = types.StringValue(user.Name)
-	data.LastLogin = types.StringValue(user.LastLogin.Format(time.RFC3339))
+	data.LastLogin = types.StringNull()
+	if user.LastLogin != nil {
+		data.LastLogin = types.StringValue(user.LastLogin.Format(time.RFC3339))
+	}
 	data.Email = types.StringValue(user.Email)
 	data.IsBlocked = types.BoolValue(user.IsBlocked)
-	data.IsCurrent = types.BoolValue(*user.IsCurrent)
-	data.IsServiceUser = types.BoolValue(*user.IsServiceUser)
-	data.Issued = types.StringValue(*user.Issued)
+	data.IsCurrent = types.BoolPointerValue(user.IsCurrent)
+	// is_service_user is Required on netbird_user: keep the configured value
+	// when the API omits it. Fresh data source models are already null.
+	if user.IsServiceUser != nil {
+		data.IsServiceUser = types.BoolValue(*user.IsServiceUser)
+	}
+	data.Issued = types.StringPointerValue(user.Issued)
 	data.Role = types.StringValue(user.Role)
 	data.Status = types.StringValue(string(user.Status))
-	l, diag := types.ListValueFrom(ctx, types.StringType, user.AutoGroups)
+	l, diag := sortedStringList(ctx, data.AutoGroups, user.AutoGroups)
 	ret.Append(diag...)
 	data.AutoGroups = l
 	return ret
@@ -248,7 +260,7 @@ func (r *User) Update(ctx context.Context, req resource.UpdateRequest, resp *res
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 

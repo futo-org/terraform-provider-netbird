@@ -119,11 +119,11 @@ func networkAPIToTerraform(ctx context.Context, network *api.Network, data *Netw
 	data.Id = types.StringValue(network.Id)
 	data.Name = types.StringValue(network.Name)
 	data.Description = types.StringPointerValue(network.Description)
-	data.Resources, d = types.ListValueFrom(ctx, types.StringType, network.Resources)
+	data.Resources, d = sortedStringList(ctx, data.Resources, network.Resources)
 	ret.Append(d...)
-	data.Routers, d = types.ListValueFrom(ctx, types.StringType, network.Routers)
+	data.Routers, d = sortedStringList(ctx, data.Routers, network.Routers)
 	ret.Append(d...)
-	data.Policies, d = types.ListValueFrom(ctx, types.StringType, network.Policies)
+	data.Policies, d = sortedStringList(ctx, data.Policies, network.Policies)
 	ret.Append(d...)
 	return ret
 }
@@ -201,7 +201,7 @@ func (r *Network) Update(ctx context.Context, req resource.UpdateRequest, resp *
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 

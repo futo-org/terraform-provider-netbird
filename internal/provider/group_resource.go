@@ -147,7 +147,7 @@ func groupAPIToTerraform(ctx context.Context, group *api.Group, data *GroupModel
 	for i, v := range group.Peers {
 		peers[i] = v.Id
 	}
-	l, diag := types.ListValueFrom(ctx, types.StringType, peers)
+	l, diag := sortedStringList(ctx, data.Peers, peers)
 	ret.Append(diag...)
 	data.Peers = l
 	resources := make([]attr.Value, len(group.Resources))
@@ -160,6 +160,8 @@ func groupAPIToTerraform(ctx context.Context, group *api.Group, data *GroupModel
 		resources[i] = o
 	}
 	rl, diag := types.ListValue(groupResourceObjectType, resources)
+	ret.Append(diag...)
+	rl, diag = sortedList(ctx, data.Resources, rl)
 	ret.Append(diag...)
 	data.Resources = rl
 	return ret
@@ -270,7 +272,7 @@ func (r *Group) Update(ctx context.Context, req resource.UpdateRequest, resp *re
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 

@@ -70,7 +70,10 @@ func (r *Scim) Schema(ctx context.Context, req resource.SchemaRequest, resp *res
 				MarkdownDescription: "The connection prefix used for the SCIM provider.",
 				Optional:            true,
 				Computed:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"enabled": schema.BoolAttribute{
 				MarkdownDescription: "Indicates whether the integration is enabled",
@@ -126,9 +129,9 @@ func scimAPIToTerraform(ctx context.Context, scim *api.ScimIntegration, data *Sc
 	data.ProviderName = types.StringValue(scim.Provider)
 	data.Enabled = types.BoolValue(scim.Enabled)
 	data.LastSyncedAt = types.StringValue(scim.LastSyncedAt.Format("2006-01-02T15:04:05Z"))
-	data.GroupPrefixes, d = types.ListValueFrom(ctx, types.StringType, scim.GroupPrefixes)
+	data.GroupPrefixes, d = sortedStringList(ctx, data.GroupPrefixes, scim.GroupPrefixes)
 	ret.Append(d...)
-	data.UserGroupPrefixes, d = types.ListValueFrom(ctx, types.StringType, scim.UserGroupPrefixes)
+	data.UserGroupPrefixes, d = sortedStringList(ctx, data.UserGroupPrefixes, scim.UserGroupPrefixes)
 	ret.Append(d...)
 	// auth_token and prefix are preserved from existing state
 	return ret
