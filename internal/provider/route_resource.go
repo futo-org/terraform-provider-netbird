@@ -200,21 +200,21 @@ func routeAPIToTerraform(ctx context.Context, route *api.Route, data *RouteModel
 	if route.PeerGroups == nil {
 		data.PeerGroups = types.ListNull(types.StringType)
 	} else {
-		data.PeerGroups, d = types.ListValueFrom(ctx, types.StringType, route.PeerGroups)
+		data.PeerGroups, d = sortedStringListPointer(ctx, data.PeerGroups, route.PeerGroups)
 		ret.Append(d...)
 	}
 	if route.Domains == nil {
 		data.Domains = types.ListNull(types.StringType)
 	} else {
-		data.Domains, d = types.ListValueFrom(ctx, types.StringType, route.Domains)
+		data.Domains, d = sortedStringListPointer(ctx, data.Domains, route.Domains)
 		ret.Append(d...)
 	}
-	data.Groups, d = types.ListValueFrom(ctx, types.StringType, route.Groups)
+	data.Groups, d = sortedStringList(ctx, data.Groups, route.Groups)
 	ret.Append(d...)
 	if route.AccessControlGroups == nil {
 		data.AccessControlGroups = types.ListNull(types.StringType)
 	} else {
-		data.AccessControlGroups, d = types.ListValueFrom(ctx, types.StringType, route.AccessControlGroups)
+		data.AccessControlGroups, d = sortedStringListPointer(ctx, data.AccessControlGroups, route.AccessControlGroups)
 		ret.Append(d...)
 	}
 	data.SkipAutoApply = types.BoolPointerValue(route.SkipAutoApply)
@@ -305,7 +305,7 @@ func (r *Route) Update(ctx context.Context, req resource.UpdateRequest, resp *re
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 

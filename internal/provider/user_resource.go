@@ -96,9 +96,13 @@ func (r *User) Schema(ctx context.Context, req resource.SchemaRequest, resp *res
 				Validators:          []validator.String{stringvalidator.OneOf("owner", "admin", "user", "billing_admin", "auditor", "network_admin")},
 			},
 			"status": schema.StringAttribute{
-				MarkdownDescription: "User status (active or invited)",
+				// No UseStateForUnknown: status tracks is_blocked, so keeping the
+				// prior value through the plan made Terraform expect "active" while
+				// the apply returned "blocked", which it reports as the provider
+				// producing an inconsistent result. It has to be planned as unknown
+				// because it is a value only the server can supply.
+				MarkdownDescription: "User status (active, invited or blocked)",
 				Computed:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"issued": schema.StringAttribute{
 				MarkdownDescription: "User issue method",
@@ -165,7 +169,7 @@ func userAPIToTerraform(ctx context.Context, user *api.User, data *UserModel) di
 	data.Issued = types.StringValue(*user.Issued)
 	data.Role = types.StringValue(user.Role)
 	data.Status = types.StringValue(string(user.Status))
-	l, diag := types.ListValueFrom(ctx, types.StringType, user.AutoGroups)
+	l, diag := sortedStringList(ctx, data.AutoGroups, user.AutoGroups)
 	ret.Append(diag...)
 	data.AutoGroups = l
 	return ret
@@ -248,7 +252,7 @@ func (r *User) Update(ctx context.Context, req resource.UpdateRequest, resp *res
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 

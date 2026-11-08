@@ -6,7 +6,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -241,10 +240,10 @@ func peerAPIToTerraform(ctx context.Context, peer *api.Peer, data *PeerModel) di
 	for i, g := range peer.Groups {
 		groupIDs[i] = g.Id
 	}
-	l, diag := types.ListValueFrom(ctx, types.StringType, groupIDs)
+	l, diag := sortedStringList(ctx, data.Groups, groupIDs)
 	ret.Append(diag...)
 	data.Groups = l
-	l, diag = types.ListValueFrom(ctx, types.StringType, peer.ExtraDnsLabels)
+	l, diag = sortedStringList(ctx, data.ExtraDnsLabels, peer.ExtraDnsLabels)
 	ret.Append(diag...)
 	data.ExtraDnsLabels = l
 	return ret
@@ -356,7 +355,7 @@ func (r *Peer) Update(ctx context.Context, req resource.UpdateRequest, resp *res
 	}
 
 	if data.Id.ValueString() == "" {
-		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.Config}, (*resource.CreateResponse)(resp))
+		r.Create(ctx, resource.CreateRequest{Config: req.Config, Plan: req.Plan, ProviderMeta: req.ProviderMeta}, (*resource.CreateResponse)(resp))
 		return
 	}
 
@@ -400,12 +399,8 @@ func (r *Peer) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 		return
 	}
 
-	// Do not delete actual peers in acceptance tests to make running locally easier
-	if _, ok := os.LookupEnv("TF_ACC"); !ok {
-		err := r.client.Peers.Delete(ctx, data.Id.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Error deleting Peer", err.Error())
-		}
+	if err := r.client.Peers.Delete(ctx, data.Id.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Error deleting Peer", err.Error())
 	}
 }
 
