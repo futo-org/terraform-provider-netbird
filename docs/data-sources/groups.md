@@ -53,4 +53,12 @@ Read-Only:
 - `issued` (String) Group issued by
 - `name` (String) Group name identifier
 - `peers` (List of String) List of peers ids
-- `resources` (List of String) List of network resource ids
+- `resources` (List of Object) List of network resources associated with the group, each as an object with `id` and `type`. (see [below for nested schema](#nestedatt--groups--resources))
+
+<a id="nestedatt--groups--resources"></a>
+### Nested Schema for `groups.resources`
+
+Read-Only:
+
+- `id` (String)
+- `type` (String)

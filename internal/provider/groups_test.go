@@ -5,7 +5,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
@@ -84,5 +87,41 @@ func Test_groupsAPIToTerraform(t *testing.T) {
 	if len(data.Groups) != 1 || data.Groups[0].Name.ValueString() != "NetbirdUsersInfraDyn" ||
 		data.Groups[0].Issued.ValueString() != "jwt" || len(data.Groups[0].Peers.Elements()) != 1 {
 		t.Fatalf("Unexpected group mapping: %#v", data.Groups)
+	}
+}
+
+// Test_groupsAPIToTerraform_ResourcesFitSchema checks a group holding network
+// resources maps to a value the data source schema accepts, so the nested
+// resources type stays in step with the singular group schema.
+func Test_groupsAPIToTerraform_ResourcesFitSchema(t *testing.T) {
+	ctx := context.Background()
+	groups := []api.Group{
+		{
+			Id:        "g1",
+			Name:      "Liberty Park Servers",
+			Issued:    valPtr(api.GroupIssuedApi),
+			Peers:     []api.PeerMinimum{{Id: "p1"}},
+			Resources: []api.Resource{{Id: "r2", Type: api.ResourceTypeSubnet}, {Id: "r1", Type: api.ResourceTypeHost}},
+		},
+	}
+
+	data := GroupsModel{Name: types.StringValue("Liberty Park Servers"), Issued: types.StringNull()}
+	if d := groupsAPIToTerraform(ctx, groups, &data); d.HasError() {
+		t.Fatalf("Expected no error diagnostics, found %v", d)
+	}
+
+	var schemaResp datasource.SchemaResponse
+	(&GroupsDataSource{}).Schema(ctx, datasource.SchemaRequest{}, &schemaResp)
+	state := tfsdk.State{Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil), Schema: schemaResp.Schema}
+	if d := state.Set(ctx, &data); d.HasError() {
+		t.Fatalf("Expected the groups data source schema to accept the mapped value, found %v", d)
+	}
+
+	var resources []groupResourceModel
+	if d := data.Groups[0].Resources.ElementsAs(ctx, &resources, false); d.HasError() {
+		t.Fatalf("Expected resources to decode as {id,type} objects, found %v", d)
+	}
+	if len(resources) != 2 || resources[0].Id.ValueString() != "r1" || resources[0].Type.ValueString() != "host" {
+		t.Fatalf("Expected resources sorted by id with their types, found %#v", resources)
 	}
 }
